@@ -7,7 +7,7 @@ class TestBed(object):
 		self.arms = k
 		self.arm_means = np.random.normal(size=k)
 		self.values = []
-		self.count = [1] * k
+		self.count = np.ones(k)
 		self.epsilon = epsilon
 		self.steps = k
 
@@ -17,6 +17,7 @@ class TestBed(object):
 				self.values.append(np.random.normal(self.arm_means[i]))
 		else:
 			self.values = [init_val] * k
+		self.values = np.array(self.values)
 
 	def __epsilon_greedy(self):
 		# exploration step
@@ -28,6 +29,21 @@ class TestBed(object):
 		reward = np.random.normal(self.arm_means[next_arm])
 		self.values[next_arm] += (reward - self.values[next_arm])/self.count[next_arm]
 		self.count[next_arm] += 1
+		self.steps += 1
+
+	def __softmax(self):
+		pass
+
+	def __ucb(self):
+		next_arm = np.argmax(self.values + self.c * np.sqrt(np.log(self.steps)/self.count))
+		reward = np.random.normal(self.arm_means[next_arm])
+		self.values[next_arm] += (reward - self.values[next_arm])/self.count[next_arm]
+		self.count[next_arm] += 1
+		self.steps += 1
+
+
+	def __median_elimination(self):
+		pass
 
 	def next_action(self):
 		pass
