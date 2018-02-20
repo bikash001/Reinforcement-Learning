@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 class TestBed(object):
 	"""docstring for TestBed"""
@@ -19,6 +20,29 @@ class TestBed(object):
 			self.values = [init_val] * k
 		self.values = np.array(self.values)
 
+		if algo == 'egreedy':
+			self.__algo = self.__epsilon_greedy
+		elif algo == 'ucb':
+			self.__algo = self.__ucb
+		elif algo == 'softmax':
+			self.__algo = self.__softmax
+		else:
+			raise 'Invalid algo'
+
+	def start_simulation(self):
+		rewards = []
+		for i in range(1000):
+			reward = self.__algo()
+			rewards.append(reward)
+
+		total = rewards[0]
+		for i in range(1, len(rewards)+1):
+			total += rewards[i-1]
+			rewards[i-1] = total / i
+
+		return np.array(rewards)
+	
+
 	def __epsilon_greedy(self):
 		# exploration step
 		if np.random.randn() < self.epsilon:
@@ -31,6 +55,8 @@ class TestBed(object):
 		self.values[next_arm] += (reward - self.values[next_arm])/self.count[next_arm]
 		self.count[next_arm] += 1
 		self.steps += 1
+		return reward
+			
 
 	def __softmax(self):
 		self.steps += 1
@@ -50,7 +76,7 @@ class TestBed(object):
 
 		for i in range(next_arm+1, self.arms):
 			self.prefs[i] -= (self.alpha * (reward - self.avg_reward)) * self.probs[i]
-
+		return reward
 
 	def __ucb(self):
 		min_indices = np.where(self.values == (self.values + self.c * np.sqrt(np.log(self.steps)/self.count)))[0]
@@ -59,7 +85,7 @@ class TestBed(object):
 		self.values[next_arm] += (reward - self.values[next_arm])/self.count[next_arm]
 		self.count[next_arm] += 1
 		self.steps += 1
-
+		return reward
 
 	def __median_elimination(self):
 		arms = np.array([i for i in range(0, self.arms)])
@@ -72,7 +98,25 @@ class TestBed(object):
 			for i in arms:
 				means.append(np.mean(np.random.normal(self.means[i],size=times)))
 
-			values = 
+			# values = 
 
 	def next_action(self):
 		pass
+
+
+if __name__ == '__main__':
+	for eps in [0., 0.1, 0.01]:
+		rewards = None
+		for i in range(2000):
+			tb = TestBed(epsilon=eps)
+			if rewards is not None:
+				avg_rewards = tb.start_simulation()
+				rewards += avg_rewards
+			else:
+				rewards = tb.start_simulation()
+
+		rewards = rewards / 2000
+		plt.plot(list(range(0, len(rewards))), rewards, label='eps = '+str(eps))
+	
+	plt.legend()
+	plt.show()
