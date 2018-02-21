@@ -1,3 +1,5 @@
+# !/usr/bin/python
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
@@ -5,7 +7,7 @@ import sys
 
 class TestBed(object):
 	"""This class is used for simulating k-arm bandit using different action selection algorithms."""
-	def __init__(self, k=10, epsilon=0.1, delta=0.1, algo='egreedy', t=0.1, c=2., means=None):
+	def __init__(self, k=10, epsilon=0.1, delta=0.1, algo='e-greedy', t=0.01, c=2., means=None):
 		super(TestBed, self).__init__()
 		self.arms = k 							# no. of arms in the bandit
 		
@@ -27,7 +29,7 @@ class TestBed(object):
 
 		self.values = np.array(self.values)
 
-		if algo == 'egreedy':
+		if algo == 'e-greedy':
 			self.__algo = self.__epsilon_greedy
 		elif algo == 'ucb':
 			self.__algo = self.__ucb
@@ -264,7 +266,7 @@ def plot2():
 
 # plot for ucb-1 algorithm
 def plot3():
-	algos = ['ucb']
+	algos = ['ucb', 'softmax','e-greedy']
 	rewards = [None] * 3
 	arms = [None] * 3
 
@@ -306,19 +308,22 @@ def plot4():
 	rewards = [None] * 3
 	arms = [None] * 3
 
-	bandits = 1000
+	bandits = 2000
+	r_len = np.inf
 
 	for i in range(bandits):
 		means = np.random.normal(size=10)
 
 		for x, y in enumerate(algos):
-			tb = TestBed(algo=y, epsilon=0.5, delta=0.5, means=means)
+			tb = TestBed(algo=y, epsilon=0.3, delta=0.3, means=means)
 			if rewards[x] is not None:
 				avg_rewards, avg_arm = tb.start_simulation()
 				rewards[x] += avg_rewards
 				arms[x] += avg_arm
 			else:
-				rewards[x], arms[x] = tb.start_simulation   ()
+				rewards[x], arms[x] = tb.start_simulation()
+				
+			r_len = int(np.min((r_len, len(rewards[x]))))
 
 	fig = plt.figure()
 	ax1 = fig.add_subplot(211)
@@ -326,8 +331,8 @@ def plot4():
 	for i, x in enumerate(algos):
 		rewards[i] = rewards[i] / bandits
 		arms[i] = arms[i] / (bandits/100.)
-		ax1.plot(list(range(0, len(rewards[i]))), rewards[i], label=x)
-		ax2.plot(list(range(0, len(arms[i]))), arms[i], label=x)
+		ax1.plot(list(range(0, r_len)), rewards[i][:r_len], label=x)
+		ax2.plot(list(range(0, r_len)), arms[i][:r_len], label=x)
 	
 	ax1.legend()
 	ax2.legend()
@@ -342,7 +347,7 @@ def plot4():
 
 # plot for 1000 arm bandit
 def plot5():
-	algos = ['me']
+	algos = ['e-greedy',  'ucb', 'softmax']
 	rewards = [None] * 3
 	arms = [None] * 3
 
@@ -379,4 +384,18 @@ def plot5():
 
 if __name__ == '__main__':
 	np.random.seed(0)
-	plot4()
+	if len(sys.argv) < 2:
+		print 'Error: invalid argument'
+		sys.exit(0)
+	if sys.argv[1] == '1':
+		plot1()
+	elif sys.argv[1] == '2':
+		plot2()
+	elif sys.argv[1] == '3':
+		plot3()
+	elif sys.argv[1] == '4':
+		plot4()
+	elif sys.argv[1] == '5'	:
+		plot5()
+	else:
+		print 'invalid argument'
