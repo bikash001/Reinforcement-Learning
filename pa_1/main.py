@@ -136,7 +136,7 @@ class TestBed(object):
 		rewards = []
 		actions = []
 
-		max_steps = 10000 	# maximum no. of steps
+		max_steps = 1000 	# maximum no. of steps
 		arms = [i for i in range(0, self.arms)] 	# arm nos.
 		eps = self.epsilon / 4
 		delta = self.delta / 2
@@ -150,7 +150,7 @@ class TestBed(object):
 			for i, x in enumerate(arms):
 				r = np.random.normal(self.arm_means[x],size=times).tolist()
 				rewards += r 		# store the generated rewards
-				actions += [x]*times 	# store the pulled arm
+				actions += [1. if x == self.optimum_arm else 0.]*times 	# store the pulled arm
 				values[i] = (total_times * values[i] + np.sum(r)) / (total_times + times) 	# update sample mean
 
 			total_times += times
@@ -170,15 +170,16 @@ class TestBed(object):
 			eps = 3./4. * eps
 			delta = delta / 2.
 
-			if len(rewards) >= max_steps:
-				break
+			# if len(rewards) >= max_steps:
+			# 	break
 
 		# pick the only remaining arm for the remaining steps
-		if len(rewards) < max_steps:
-			rewards += np.random.normal(self.arm_means[arms[0]], size=(max_steps-len(rewards))).tolist()
-			actions += [arms[0]]*(max_steps-len(rewards))
+		# if len(rewards) < max_steps:
+		# 	rewards += np.random.normal(self.arm_means[arms[0]], size=(max_steps-len(rewards))).tolist()
+		# 	actions += [arms[0]]*(max_steps-len(rewards))
 
-		return np.array(rewards[:max_steps]), np.array(actions[:max_steps])
+		# return np.array(rewards[:max_steps]), np.array(actions[:max_steps])
+		return np.array(rewards), np.array(actions)
 
 
 	def next_action(self):
@@ -305,24 +306,26 @@ def plot4():
 	rewards = [None] * 3
 	arms = [None] * 3
 
-	for i in range(2000):
+	bandits = 1000
+
+	for i in range(bandits):
 		means = np.random.normal(size=10)
 
 		for x, y in enumerate(algos):
-			tb = TestBed(algo=y, epsilon=0.01, delta=0.05, means=means)
+			tb = TestBed(algo=y, epsilon=0.5, delta=0.5, means=means)
 			if rewards[x] is not None:
 				avg_rewards, avg_arm = tb.start_simulation()
 				rewards[x] += avg_rewards
 				arms[x] += avg_arm
 			else:
-				rewards[x], arms[x] = tb.start_simulation()
+				rewards[x], arms[x] = tb.start_simulation   ()
 
 	fig = plt.figure()
 	ax1 = fig.add_subplot(211)
 	ax2 = fig.add_subplot(212)
 	for i, x in enumerate(algos):
-		rewards[i] = rewards[i] / 2000
-		arms[i] = arms[i] / 20
+		rewards[i] = rewards[i] / bandits
+		arms[i] = arms[i] / (bandits/100.)
 		ax1.plot(list(range(0, len(rewards[i]))), rewards[i], label=x)
 		ax2.plot(list(range(0, len(arms[i]))), arms[i], label=x)
 	
@@ -334,7 +337,7 @@ def plot4():
 	ax2.set_ylabel('% Optimal action')
 	ax2.set_ylim(0, 100)
 	ax1.set_ylim(0)
-	plt.show()	
+	plt.show()
 
 
 # plot for 1000 arm bandit
