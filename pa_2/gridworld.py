@@ -20,6 +20,36 @@ class GridWorldEnv(gym.Env):
         self.viewer = None
         self.state = None
 
+        self.state_rewards = np.zeros((12,12))
+        self.__fill_rewards__()
+
+    def __fill_rewards__(self):
+        for i in range(3,10):
+            self.state_rewards[i][3] = -1
+        for i in range(3, 9):
+            self.state_rewards[9][i] = -1
+        for i in range(5, 10):
+            self.state_rewards[i][8] = -1
+        for i in range(3, 6):
+            self.state_rewards[i][7] = -1
+        for i in range(3, 8):
+            self.state_rewards[3][i] = -1
+
+        for i in range(4,9):
+            self.state_rewards[i][4] = -1
+        for i in range(4, 8):
+            self.state_rewards[8][i] = -1
+        for i in range(6, 9):
+            self.state_rewards[i][7] = -1
+        for i in range(4, 7):
+            self.state_rewards[i][6] = -1
+        for i in range(4, 7):
+            self.state_rewards[4][i] = -1
+
+        for i in range(5,8):
+            self.state_rewards[i][5] = -1
+        self.state_rewards[7][6]
+
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
@@ -56,12 +86,13 @@ class GridWorldEnv(gym.Env):
         if done:
             reward = 10
 
-        if (x == 6 and y>=6 and y<=8) or (x==7 and y==8):
-            reward -= 3
-        elif (x>=5 and x<=7 and y>=5 and y<=9) or (x==8 and y>=7 and y<=9):
-            reward -= 2
-        elif (x>=4 and x<=8 and y>=4 and y<=10) or (x==9 and y>=6 and y<=10):
-            reward -= 1
+        reward += self.state_rewards[position[0]-1, position[1]-1]
+        # if (x == 6 and y>=6 and y<=8) or (x==7 and y==8):
+        #     reward -= 3
+        # elif (x>=5 and x<=7 and y>=5 and y<=9) or (x==8 and y>=7 and y<=9):
+        #     reward -= 2
+        # elif (x>=4 and x<=8 and y>=4 and y<=10) or (x==9 and y>=6 and y<=10):
+        #     reward -= 1
 
         return np.array(self.state), reward, done, {}
 
