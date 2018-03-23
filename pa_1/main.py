@@ -7,7 +7,7 @@ import sys
 
 class TestBed(object):
 	"""This class is used for simulating k-arm bandit using different action selection algorithms."""
-	def __init__(self, k=10, epsilon=0.1, delta=0.1, algo='e-greedy', t=0.01, c=2., means=None):
+	def __init__(self, k=10, max_steps=1000, epsilon=0.1, delta=0.1, algo='e-greedy', t=0.01, c=2., means=None):
 		super(TestBed, self).__init__()
 		self.arms = k 							# no. of arms in the bandit
 		
@@ -19,6 +19,7 @@ class TestBed(object):
 			self.arm_means = np.random.normal(size=k)
 
 		self.optimum_arm = np.argmax(self.arm_means) 		# optimal arm
+		self.max_steps = max_steps 		# run for max_steps no. of steps
 		self.values = [0.] * k 			# sample mean
 		self.count = np.zeros(k) 		# no. of times a particular arm pulled
 		self.epsilon = epsilon 			# parameter for e-greedy algorithm and median elimination
@@ -50,8 +51,8 @@ class TestBed(object):
 		rewards = [] 	# rewards received in each step
 		arms = [] 		# set if optimal arm is pulled
 		
-		# pull arm for 1000 times
-		for i in range(1000):
+		# pull arm for max_steps time
+		for i in range(self.max_steps):
 			reward, arm = self.__algo() 	# pull according to given method
 			rewards.append(reward)
 
@@ -188,12 +189,13 @@ class TestBed(object):
 		return self.__algo()
 
 
-# plot for part epsilon greedy algorithm
+# plot for epsilon greedy algorithm
 def plot1():
 	eps = [0., 0.01, 0.1] 
 	rewards = [None] * 3
 	arms = [None] * 3
 
+	# run 2000 bandits and take average rewards
 	for i in range(2000):
 		means = np.random.normal(size=10)
 
@@ -351,11 +353,13 @@ def plot5():
 	rewards = [None] * 3
 	arms = [None] * 3
 
-	for i in range(2000):
+	bandits = 200
+
+	for i in range(bandits):
 		means = np.random.normal(size=1000)
 
 		for x, y in enumerate(algos):
-			tb = TestBed(k=1000, algo=y, epsilon=0.1, delta=0.05, means=means)
+			tb = TestBed(k=1000, max_steps=40000, algo=y, epsilon=0.1, delta=0.05, means=means)
 			if rewards[x] is not None:
 				avg_rewards, avg_arm = tb.start_simulation()
 				rewards[x] += avg_rewards
@@ -367,8 +371,8 @@ def plot5():
 	ax1 = fig.add_subplot(211)
 	ax2 = fig.add_subplot(212)
 	for i, x in enumerate(algos):
-		rewards[i] = rewards[i] / 2000
-		arms[i] = arms[i] / 20
+		rewards[i] = rewards[i] / bandits
+		arms[i] = arms[i] / (bandits/100.)
 		ax1.plot(list(range(0, len(rewards[i]))), rewards[i], label=x)
 		ax2.plot(list(range(0, len(arms[i]))), arms[i], label=x)
 	
@@ -381,6 +385,7 @@ def plot5():
 	ax2.set_ylim(0, 100)
 	ax1.set_ylim(0)
 	plt.show()
+	# plt.shavefig('fig.png')
 
 if __name__ == '__main__':
 	np.random.seed(0)

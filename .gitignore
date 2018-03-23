@@ -106,3 +106,5 @@ ENV/
 */*.tex
 */report.pdf
 */*.synctex.gz
+
+*/*.tar.gz
