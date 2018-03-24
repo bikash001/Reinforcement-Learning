@@ -14,7 +14,7 @@ class GridWorldEnv(gym.Env):
         
         self.action_space = spaces.Discrete(4)
         self.observation_space = spaces.Box(0, 11, shape=(2,), dtype=np.int)
-        self.success_prob = 0.9
+        self.success_prob = 1.
         self.wind_prob = wind_prob
         self.seed()
         self.viewer = None
@@ -72,30 +72,37 @@ class GridWorldEnv(gym.Env):
             actions.remove(action)
             action = self.np_random.choice(actions)
         
+        acc = 'same'
         # move east
         if action == 0:
+            acc = 'east'
             x += 1
         elif action == 1:   # move west
+            acc = 'west'
             x -= 1
         elif action == 2: # move north
+            acc = 'north'
             y += 1
         else:   # move south
+            acc = 'south'
             y -= 1
 
         if self.np_random.rand() < self.wind_prob:
+            acc = 'wind'
             x += 1
 
         position = (x, y)
         if not (x < 0 or x >= 12 or y < 0 or y >= 12):
             self.state = position
         else:
+            acc = 'same'
             position = self.state
         done = bool(position == self.goal_position)
         reward = 0
         if done:
             reward = 10
 
-        reward += self.state_rewards[position[0], position[1]]
+        reward += self.state_rewards[position[1]][position[0]]
         # if (x == 6 and y>=6 and y<=8) or (x==7 and y==8):
         #     reward -= 3
         # elif (x>=5 and x<=7 and y>=5 and y<=9) or (x==8 and y>=7 and y<=9):
@@ -103,7 +110,7 @@ class GridWorldEnv(gym.Env):
         # elif (x>=4 and x<=8 and y>=4 and y<=10) or (x==9 and y>=6 and y<=10):
         #     reward -= 1
 
-        return np.array(self.state), reward, done, {}
+        return np.array(self.state), reward, done, acc
 
     def reset(self):
         y = [0,1,5,6]
@@ -165,14 +172,14 @@ class GridWorldEnv(gym.Env):
             self.viewer.add_geom(flag)
 
             # agent position
-            agent = rendering.FilledPolygon(self.__margin__(arr[self.state[1]][self.state[0]], 10))
+            agent = rendering.FilledPolygon(self.__margin__(arr[0][0], 10))
             agent.set_color(0,0.,1.)
             agent.add_attr(rendering.Transform(translation=(0, 0)))
             self.agenttrans = rendering.Transform()
             agent.add_attr(self.agenttrans)
             self.viewer.add_geom(agent)
-        else:
-            self.agenttrans.set_translation(self.__del_x*(self.state[0]-self.start_pos[0]), self.__del_y*(self.state[1]-self.start_pos[1]))
+        
+        self.agenttrans.set_translation(self.__del_x*(self.state[0]), self.__del_y*(self.state[1]))
 
         # print(self.state)
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
