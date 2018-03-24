@@ -5,7 +5,7 @@ from gym import spaces
 import numpy as np
 
 
-class chakra(Env):
+class visham(Env):
     metadata = {
         'render.modes': ['human', 'rgb_array'],
         'video.frames_per_second': 50
@@ -23,6 +23,10 @@ class chakra(Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
+    def __calculate_reward__(self, pos):
+        gamma = 10.
+        return 0.5*pos[0]*pos[0] + gamma*0.5*pos[1]*pos[1]
+
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
         if abs(action[0]) > 0.025:
@@ -33,7 +37,7 @@ class chakra(Env):
         if self.state[0]<-1 or self.state[0]>1 or self.state[1]<-1 or self.state[1]>1:
             self.reset()
 
-        reward = np.linalg.norm(self.state)
+        reward = self.__calculate_reward__(self.state)
         # Return the next state and the reward, along with 2 additional quantities : False, {}
         return np.array(self.state), reward, False, {}
 
@@ -64,12 +68,12 @@ class chakra(Env):
             o = rendering.make_polyline([(0,0), (0,screen_height), (screen_width,screen_height), (screen_width,0)])
             o.set_color(0,0,0)
             self.viewer.add_geom(o)
-            r = np.linspace(0, 1, 20)
-            for x in r:
-                o = rendering.make_circle(min(screen_height, screen_width) * x, filled=False)
-                o.add_attr(rendering.Transform(translation=(screen_width/2, screen_height/2)))
-                o.set_color(0,0,0)
-                self.viewer.add_geom(o)
+            # r = np.linspace(0, 1, 10)
+            # for x in r:
+            #     o = rendering.make_circle(min(screen_height, screen_width) * x, filled=False)
+            #     o.add_attr(rendering.Transform(translation=(screen_width/2, screen_height/2)))
+            #     o.set_color(0,0,0)
+            #     self.viewer.add_geom(o)
 
            
             agent = rendering.make_circle(
