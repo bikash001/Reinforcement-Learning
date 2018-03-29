@@ -203,3 +203,4 @@ class GridWorldEnvC(GridWorldEnv):
     def __init__(self):
         super(GridWorldEnvC, self).__init__()
         self.goal_position = (7, 5)
+        self.wind_prob = 0.

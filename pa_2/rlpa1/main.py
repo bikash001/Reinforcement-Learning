@@ -5,6 +5,7 @@ import rlpa
 import sys
 from gym.envs.classic_control import rendering
 import matplotlib.pyplot as plt
+from tqdm import tqdm
     
 
 def view(q):
@@ -227,7 +228,7 @@ def sarsa(model='A', max_episode=500):
             if done:
                 rewards.append(total_r)
                 steps.append(t)
-                 # print("Episode finished after {} timesteps".format(t+1))
+                # print("Episode finished after {} timesteps".format(t+1))
                 break
     
     return rewards, steps            
@@ -332,10 +333,10 @@ def plot1(algo):
     else:
         raise NotImplementedError()
 
-    for goal in ['A', 'B', 'C']:
+    for goal in ['C']:
         max_episode = 500
         rewards, steps = [], []
-        for i in range(50):
+        for i in tqdm(range(50)):
             r, s = model(goal, max_episode)
             rewards.append(r)
             steps.append(s)
@@ -358,10 +359,10 @@ def plot1(algo):
 
 def plot2():
     for goal in ['A', 'B', 'C']:
-        for lmd in [0, 0.3, 0.5, 0.9, 0.99, 1.0]
+        for lmd in [0, 0.3, 0.5, 0.9, 0.99, 1.0]:
             max_episode = 500
             rewards, steps = [], []
-            for i in range(50):
+            for i in tqdm(range(50)):
                 r, s = sarsa_lambda(lmd, goal, max_episode)
                 rewards.append(r)
                 steps.append(s)
