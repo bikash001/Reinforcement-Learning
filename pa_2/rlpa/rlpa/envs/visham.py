@@ -12,9 +12,8 @@ class visham(Env):
     }
 
     def __init__(self):
-        self.action_space = spaces.Box(low=-1, high=1, shape=(2,))
-        self.observation_space = spaces.Box(low=-1, high=1, shape=(2,))
-
+        self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
         self.seed()
         self.viewer = None
         self.state = None
@@ -26,20 +25,26 @@ class visham(Env):
     def __calculate_reward__(self, pos):
         gamma = 10.
         return 0.5*pos[0]*pos[0] + gamma*0.5*pos[1]*pos[1]
-
+    
     def step(self, action):
-        assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
-        if abs(action[0]) > 0.025:
-            action[0] = 0.025 * np.sign(action[0])
-        if abs(action[1]) > 0.025:
-            action[1] = 0.025 * np.sign(action[1])
+        # assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
+        # if abs(action[0]) > 0.025:
+        #     action[0] = 0.025 * np.sign(action[0])
+        # if abs(action[1]) > 0.025:
+        #     action[1] = 0.025 * np.sign(action[1])
+        norm = np.linalg.norm(action)
+        if norm > 0.025:
+            action[0] = action[0]/norm * 0.025
+            action[1] = action[1]/norm * 0.025
+        
         self.state = np.array([self.state[0]+action[0], self.state[1]+action[1]])
         if self.state[0]<-1 or self.state[0]>1 or self.state[1]<-1 or self.state[1]>1:
             self.reset()
 
         reward = -self.__calculate_reward__(self.state)
+        done = bool(self.state[0] == 0. and self.state[1] == 0.)
         # Return the next state and the reward, along with 2 additional quantities : False, {}
-        return np.array(self.state), reward, False, {}
+        return np.array(self.state), reward, done, {}
 
     def reset(self):
         while True:
@@ -65,10 +70,10 @@ class visham(Env):
             from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(screen_width, screen_height)
 
-            o = rendering.make_polyline([(0,0), (0,screen_height), (screen_width,screen_height), (screen_width,0)])
-            o.set_color(0,0,0)
-            self.viewer.add_geom(o)
-            # r = np.linspace(0, 1, 10)
+            # o = rendering.make_polyline([(0,0), (0,screen_height), (screen_width,screen_height), (screen_width,0)])
+            # o.set_color(0,0,0)
+            # self.viewer.add_geom(o)
+            # r = np.linspace(0, 1, 20)
             # for x in r:
             #     o = rendering.make_circle(min(screen_height, screen_width) * x, filled=False)
             #     o.add_attr(rendering.Transform(translation=(screen_width/2, screen_height/2)))
@@ -102,7 +107,7 @@ class visham(Env):
         if self.viewer: self.viewer.close()
 
 # register(
-#     'chakra-v0',
-#     entry_point='rlpa2.chakra:chakra',
+#     'visham-v0',
+#     entry_point='rlpa.visham:visham',
 #     timestep_limit=40,
 # )

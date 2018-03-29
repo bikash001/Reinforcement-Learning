@@ -14,7 +14,6 @@ class chakra(Env):
     def __init__(self):
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,))
         self.observation_space = spaces.Box(low=-1, high=1, shape=(2,))
-
         self.seed()
         self.viewer = None
         self.state = None
@@ -24,7 +23,7 @@ class chakra(Env):
         return [seed]
 
     def step(self, action):
-        assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
+        # assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
         if abs(action[0]) > 0.025:
             action[0] = 0.025 * np.sign(action[0])
         if abs(action[1]) > 0.025:
@@ -33,9 +32,10 @@ class chakra(Env):
         if self.state[0]<-1 or self.state[0]>1 or self.state[1]<-1 or self.state[1]>1:
             self.reset()
 
-        reward = np.linalg.norm(self.state)
+        reward = -np.linalg.norm(self.state)
+        done = bool(self.state[0] == 0. and self.state[1] == 0.)
         # Return the next state and the reward, along with 2 additional quantities : False, {}
-        return np.array(self.state), reward, False, {}
+        return np.array(self.state), reward, done, {}
 
     def reset(self):
         while True:

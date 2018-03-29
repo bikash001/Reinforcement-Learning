@@ -23,8 +23,6 @@ class GridWorldEnv(gym.Env):
         self.__fill_rewards__()
         self.goal_position = (11,11)
         
-    def 
-
     def __fill_rewards__(self):
         for i in range(3,10):
             self.state_rewards[i][3] = -1
@@ -176,7 +174,6 @@ class GridWorldEnv(gym.Env):
         
         self.agenttrans.set_translation(self.__del_x*(self.state[0]), self.__del_y*(self.state[1]))
 
-        # print(self.state)
         return self.viewer.render(return_rgb_array = mode=='rgb_array')
 
     def __margin__(self, els, val):
