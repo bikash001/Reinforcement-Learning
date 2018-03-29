@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
     
 
-def view(q):
+def view(q, goal_position):
     state_rewards = np.zeros((12,12))
     for i in range(3,10):
         state_rewards[i][3] = -1
@@ -36,7 +36,6 @@ def view(q):
         state_rewards[i][5] = -3
     state_rewards[7][6] = -3
 
-    goal_position = (11,11)
 
     screen_width = 500
     screen_height = 500
@@ -127,11 +126,11 @@ def view(q):
 
 
 def q_learning(model='A', max_episode=None):
-    # batch_size = 20
+    batch_size = 50
     alpha = 0.1
-    # alpha_k = 0.999
+    alpha_k = 0.999
     eps = 0.1
-    # eps_k = 0.9999
+    eps_k = 0.9999
     gamma = 0.9
     q = np.zeros((12*12,4))
     env = gym.make('gridworld'+model+'-v0')
@@ -141,7 +140,7 @@ def q_learning(model='A', max_episode=None):
     steps = []
     while True:
         ep_no += 1
-        # prev_q = np.array(q)
+        prev_q = np.array(q)
         state = env.reset()
         t = 0
         total_r = 0.
@@ -164,18 +163,23 @@ def q_learning(model='A', max_episode=None):
         if max_episode is not None:
             if ep_no >= max_episode:
                 break
-        # elif ep_no % batch_size == 0:
-            # alpha = alpha * alpha_k
-            # eps = eps * eps_k
+        elif ep_no % batch_size == 0:
+            alpha = alpha * alpha_k
+            eps = eps * eps_k
 
-        # if max_episode is None and (np.linalg.norm(prev_q-q) <= 1e-6):
-        #     break
+        if max_episode is None and (np.linalg.norm(prev_q-q) <= 1e-8):
+            break
 
     return rewards, steps
     # print('alpha %f, eps %f' %(alpha, eps))
     # np.save('q_learning', q)
     # input('enter no.')
-    # v = view(q)
+    # if model == 'A':
+    #     v = view(q, (11, 11))
+    # elif model == 'B':
+    #     v = view(q, (9, 9))
+    # else:
+    #     v = view(q, (7, 5))
     # input('enter to exit')
     # v.close()
     # for _ in range(2):
@@ -231,8 +235,19 @@ def sarsa(model='A', max_episode=500):
                 # print("Episode finished after {} timesteps".format(t+1))
                 break
     
-    return rewards, steps            
-
+    # return rewards, steps            
+    print('alpha %f, eps %f' %(alpha, eps))
+    np.save('q_learning', q)
+    input('enter no.')
+    if model == 'A':
+        v = view(q, (11, 11))
+    elif model == 'B':
+        v = view(q, (9, 9))
+    else:
+        v = view(q, (7, 5))
+    input('enter to exit')
+    v.close()
+    
     # np.savetxt('probs.csv', q, delimiter=',')
     # return
     # for i in range(10):
@@ -299,7 +314,19 @@ def sarsa_lambda(lmd, model='A', max_episode=500):
                 steps.append(t)
                 break
             
-    return rewards, steps
+    # return rewards, steps
+    # print('alpha %f, eps %f' %(alpha, eps))
+    # np.save('sarsa_lambda', q)
+    input('enter no.')
+    if model == 'A':
+        v = view(q, (11, 11))
+    elif model == 'B':
+        v = view(q, (9, 9))
+    else:
+        v = view(q, (7, 5))
+    input('enter to exit')
+    v.close()
+    
     # np.savetxt('probs.csv', q, delimiter=',')
     # return
     # for i in range(10):
@@ -336,7 +363,7 @@ def plot1(algo):
     for goal in ['C']:
         max_episode = 500
         rewards, steps = [], []
-        for i in tqdm(range(50)):
+        for i in tqdm(range(10)):
             r, s = model(goal, max_episode)
             rewards.append(r)
             steps.append(s)
@@ -358,7 +385,7 @@ def plot1(algo):
         plt.clf()
 
 def plot2():
-    for goal in ['A', 'B', 'C']:
+    for goal in ['A', 'B']:
         for lmd in [0, 0.3, 0.5, 0.9, 0.99, 1.0]:
             max_episode = 500
             rewards, steps = [], []
@@ -373,7 +400,7 @@ def plot2():
             plt.xlabel('episodes')
             plt.ylabel('average rewards')
             plt.plot(np.linspace(1, max_episode, max_episode),r_y)
-            plt.savefig('sarsa-'+str(lmd)+'-'+goal+'-rewardss.png')
+            plt.savefig('sarsa-'+str(lmd)+'-'+goal+'-rewards.png')
             plt.clf()
 
             plt.title('Sarsa(λ)')
@@ -383,8 +410,44 @@ def plot2():
             plt.savefig('sarsa-'+str(lmd)+'-'+goal+'_steps.png')
             plt.clf()
 
+def plot3():
+    l_values = np.linspace(0,1, 21)
+    for goal in ['A', 'B']:
+        rewards, steps = [], []
+        for lmd in l_values:
+            max_episode = 26
+            rs, ss = [], []
+            for i in tqdm(range(100)):
+                r, s = sarsa_lambda(lmd, goal, max_episode)
+                rs.append(r[-1])
+                ss.append(s[-1])
+            rewards.append(np.mean(rs))
+            steps.append(np.mean(ss))
+
+        r_y = rewards
+        s_y = steps
+        plt.title('Sarsa(λ)')
+        plt.xlabel('λ')
+        plt.ylabel('average rewards')
+        plt.plot(l_values,r_y)
+        plt.savefig('ss-'+goal+'-rewards.png')
+        plt.clf()
+
+        plt.title('Sarsa(λ)')
+        plt.xlabel('episodes')
+        plt.ylabel('average steps')
+        plt.plot(l_values,s_y)
+        plt.savefig('ss-'+goal+'_steps.png')
+        plt.clf()
+
 if __name__ == '__main__':
-    plot1('Sarsa')
+    # plot3()
+    # plot1('Sarsa')
+    plot1('Q-learning')
+    # plot2()
+    # q_learning('C', 50000)
+    # sarsa('C', 10000)
+    # sarsa_lambda(lmd=0., model='C', max_episode=1000)
     # v = view(None)
     # input()
     # v.close()

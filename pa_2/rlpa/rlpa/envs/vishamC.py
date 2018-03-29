@@ -5,7 +5,7 @@ from gym import spaces
 import numpy as np
 
 
-class visham(Env):
+class vishamC(Env):
     metadata = {
         'render.modes': ['human', 'rgb_array'],
         'video.frames_per_second': 50
@@ -107,7 +107,7 @@ class visham(Env):
         if self.viewer: self.viewer.close()
 
 # register(
-#     'visham-v0',
-#     entry_point='rlpa.visham:visham',
+#     'vishamC-v0',
+#     entry_point='rlpa.vishamC:vishamC',
 #     timestep_limit=40,
 # )

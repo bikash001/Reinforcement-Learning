@@ -10,8 +10,8 @@ register(
 )
 
 register(
-    id='visham-v0',
-    entry_point='rlpa.envs:visham',
+    id='vishamC-v0',
+    entry_point='rlpa.envs:vishamC',
     timestep_limit=40,
 )
 
