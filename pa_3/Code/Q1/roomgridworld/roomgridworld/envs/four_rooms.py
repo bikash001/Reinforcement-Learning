@@ -18,7 +18,7 @@ class FourRooms(gym.Env):
   metadata = {'render.modes': ['human']}
 
   def __init__(self):
-    self.room_sizes = [[5,5], [6,5], [5,5], [4,5]]
+    self.room_sizes = [[5,5], [6,5], [4,5], [5,5]]
     self.pre_hallways = [ 
                           { tuple([2,4]) : [RIGHT, 0], tuple([4,1]) : [DOWN, 3]},
                           { tuple([2,0]) : [LEFT, 0], tuple([5,2]) : [DOWN, 1]},
@@ -43,20 +43,20 @@ class FourRooms(gym.Env):
     self.goal = [2, [1, 2]]
     self.terminal_state = self.encode(self.goal)
 
-    self.noise = 0 #0.33
+    # self.noise = 0.33
+    self.noise = 0
     self.step_reward = 0.0
     self.terminal_reward = 1.0
-    self.bump_reward = -0.1
+    self.bump_reward = 0 # -0.1
 
     # start state random location in start room
     start_room = 0
     sz = self.room_sizes[start_room]
     self.start_state = self.offsets[start_room] + np.random.randint(sz[0]*sz[1] - 1)
-    self._reset()
+    self.reset()
 
     self.action_space = spaces.Discrete(4)
     self.observation_space = spaces.Discrete(self.n_states) # with absorbing state
-
 
   def ind2coord(self, index, sizes=None):
     if sizes is None:
@@ -69,6 +69,10 @@ class FourRooms(gym.Env):
     col = index % cols
 
     return [row, col]
+
+  def seed(self, seed=None):
+    self.np_random, seed = seeding.np_random(seed)
+    return [seed]
 
 
   def coord2ind(self, coord, sizes=None):
@@ -113,7 +117,7 @@ class FourRooms(gym.Env):
       coord_in_room = self.ind2coord(index - self.offsets[room], sizes=self.room_sizes[room])
     return room, coord_in_room # hallway
 
-  def _step(self, action):
+  def step(self, action):
     assert self.action_space.contains(action)
 
     if self.state == self.terminal_state:
@@ -131,12 +135,11 @@ class FourRooms(gym.Env):
     if in_hallway: # hallway action
       [room2, coord2] = self.hallways[room][action]
     
-    elif tuple(coord) in self.pre_hallways[room].keys():
+    elif tuple(coord) in self.pre_hallways[room].keys() and action == self.pre_hallways[room][tuple(coord)][0]:
       hallway_info = self.pre_hallways[room][tuple(coord)]
-      if action == hallway_info[0]:
-        room2 = hallway_info[1]
-        coord2 = self.hallway_coords[room2]
-    
+      room2 = hallway_info[1]
+      coord2 = self.hallway_coords[room2]
+
     else: # normal action
       [row, col] = coord
       [rows, cols] = self.room_sizes[room]
@@ -151,9 +154,9 @@ class FourRooms(gym.Env):
       coord2 = [row, col]
 
     new_state = self.encode([room2, coord2])
-    self.state = new_state
 
     reward = self._get_reward(new_state=new_state)
+    self.state = new_state
 
     return new_state, reward, self.done, None
 
@@ -176,11 +179,44 @@ class FourRooms(gym.Env):
     return (row == 0 or row == self.n - 1 or col == 0 or col == self.n - 1)
 
 
-  def _reset(self):
+  def reset(self):
+    self.start_state = np.random.randint(25)
     self.state = self.start_state if not isinstance(self.start_state, str) else np.random.randint(self.n_states - 1)
     self.done = False
     return self.state
 
-  def _render(self, mode='human', close=False):
+  def render(self, mode='human', close=False):
     pass
       
+
+class RoomGridWorldA(FourRooms):
+	"""docstring for RoomGridWorldA"""
+	def __init__(self):
+		super(RoomGridWorldA, self).__init__()
+		self.goal = [2, [2, -1]]
+		self.terminal_state = self.encode(self.goal)
+
+
+class RoomGridWorldB(FourRooms):
+	"""docstring for RoomGridWorldA"""
+	def __init__(self):
+		super(RoomGridWorldB, self).__init__()
+		self.goal = [2, [1, 2]]
+		self.terminal_state = self.encode(self.goal)
+
+
+class RoomGridWorldC(FourRooms):
+  """docstring for RoomGridWorldA"""
+  def __init__(self):
+    super(RoomGridWorldC, self).__init__()
+    self.goal = [2, [2, -1]]
+    self.terminal_state = self.encode(self.goal)
+    self.start_state = 90
+
+class RoomGridWorldD(FourRooms):
+  """docstring for RoomGridWorldA"""
+  def __init__(self):
+    super(RoomGridWorldD, self).__init__()
+    self.goal = [2, [1, 2]]
+    self.terminal_state = self.encode(self.goal)
+    self.start_state = 90

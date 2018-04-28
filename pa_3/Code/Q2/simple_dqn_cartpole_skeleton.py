@@ -1,5 +1,6 @@
 import gym
 import random
+import os
 
 import numpy as np
 import tensorflow as tf
@@ -21,18 +22,25 @@ class DQN:
 
 
 	# Create and initialize the environment
-	def __init__(self, env):
+	def __init__(self, env, hidden, model_dir='tmp/'):
 		self.env = gym.make(env)
 		assert len(self.env.observation_space.shape) == 1
 		self.input_size = self.env.observation_space.shape[0]		# In case of cartpole, 4 state features
 		self.output_size = self.env.action_space.n					# In case of cartpole, 2 actions (right/left)
-	
-	# Create the Q-network
-  	def initialize_network(self):
+		if not os.path.exists(model_dir):
+			os.makedirs(model_dir)
 
-  		# placeholder for the state-space input to the q-network
-		self.x = tf.placeholder(tf.float32, [None, self.input_size])
+		self.model_dir = model_dir
+		self.hidden = hidden
+		self.epsilon = 0.1 #self.EPSILON
+		self.batch_size = self.MINIBATCH_SIZE
+		self.gamma = self.DISCOUNT_FACTOR
+		self.epsilon_decay = 0.999
+		self.lr = 0.001
 
+	def _build_graph(self, target):
+		# placeholder for the state-space input to the q-network
+		x = tf.placeholder(tf.float32, [None, self.input_size], name='input_placeholder')
 		############################################################
 		# Design your q-network here.
 		# 
@@ -46,54 +54,107 @@ class DQN:
 		# 	self.Q = tf.matmul(h_n-1, W_n) + b_n
 		#
 		#############################################################
+		if target:
+			w1_inp = tf.zeros([self.input_size, self.hidden[0]])
+			w2_inp = tf.zeros([self.hidden[0], self.hidden[1]])
+			w3_inp = tf.zeros([self.hidden[1], self.output_size])
+		else:
+			w1_inp = tf.truncated_normal([self.input_size, self.hidden[0]], stddev=0.01)
+			w2_inp = tf.truncated_normal([self.hidden[0], self.hidden[1]], stddev=0.01)
+			w3_inp = tf.truncated_normal([self.hidden[1], self.output_size], stddev=0.01)
 
-		# Your code here
+		w1 = tf.Variable(w1_inp, name='w1')
+		b1 = tf.Variable(tf.zeros(self.hidden[0]), name='b1')
+		a1 = tf.matmul(x, w1) + b1
+		h1 = tf.tanh(a1)
 
-		############################################################
-		# Next, compute the loss.
-		#
-		# First, compute the q-values. Note that you need to calculate these
-		# for the actions in the (s,a,s',r) tuples from the experience replay's minibatch
-		#
-		# Next, compute the l2 loss between these estimated q-values and 
-		# the target (which is computed using the frozen target network)
-		#
-		############################################################
+		w2 = tf.Variable(w2_inp,name='w2')
+		b2 = tf.Variable(tf.zeros(self.hidden[1]), name='b2')
+		a2 = tf.matmul(h1, w2) + b2
+		h2 = tf.tanh(a2)
 
-		# Your code here
+		w3 = tf.Variable(w3_inp, name='w3')
+		b3 = tf.Variable(tf.zeros(self.output_size), name='b3')
+		out = tf.matmul(h2, w3) + b3
 
-		############################################################
-		# Finally, choose a gradient descent algorithm : SGD/RMSProp/Adam. 
-		#
-		# For instance:
-		# optimizer = tf.train.GradientDescentOptimizer(self.LEARNING_RATE)
-		# global_step = tf.Variable(0, name='global_step', trainable=False)
-		# self.train_op = optimizer.minimize(self.loss, global_step=global_step)
-		#
-		############################################################
+		if target:
+			out = tf.reduce_max(out, 1)
+			self.target_saver = tf.train.Saver(
+					tf.global_variables(), max_to_keep=20)
+		else:
+			self.y = tf.placeholder(tf.float32, [None, self.output_size], name='output_placeholder')
+			############################################################
+			# Next, compute the loss.
+			#
+			# First, compute the q-values. Note that you need to calculate these
+			# for the actions in the (s,a,s',r) tuples from the experience replay's minibatch
+			#
+			# Next, compute the l2 loss between these estimated q-values and 
+			# the target (which is computed using the frozen target network)
+			#
+			############################################################
+			self.mask = tf.placeholder(tf.float32, [None, self.output_size], name='mask_placeholder')
+			y_hat = tf.multiply(out, self.mask)
+			# y = tf.multiply(self.y, self.mask)
+			loss = tf.losses.mean_squared_error(self.y, y_hat)
 
-		# Your code here
+			############################################################
+			# Finally, choose a gradient descent algorithm : SGD/RMSProp/Adam. 
+			#
+			# For instance:
+			# optimizer = tf.train.GradientDescentOptimizer(self.LEARNING_RATE)
+			# global_step = tf.Variable(0, name='global_step', trainable=False)
+			# self.train_op = optimizer.minimize(self.loss, global_step=global_step)
+			#
+			############################################################
 
-		############################################################
+			# Your code here
+			optimizer = tf.train.AdamOptimizer(self.lr)
+			global_step = tf.Variable(0, name='global_step', trainable=False)
+			self.train_op = optimizer.minimize(loss, global_step=global_step)
+			self.policy_saver = tf.train.Saver(
+					tf.global_variables(), max_to_keep=20)
+			self.loss = loss
+			############################################################
+		return x, out
+
+	# Create the Q-network
+  	def initialize_network(self):
+  		self.target_graph = tf.Graph()
+  		with self.target_graph.as_default():
+  			self.tx, self.tout = self._build_graph(True)
+  		
+  		self.policy_graph = tf.Graph()
+  		with self.policy_graph.as_default():
+  			self.x, self.out = self._build_graph(False)
+  		
+	def _change_target(self):
+		ckpt = self.policy_saver.save(self.policy_sess, self.model_dir)
+		self.target_saver.restore(self.target_sess, ckpt)
 
 	def train(self, episodes_num=EPISODES_NUM):
 		
 		# Initialize summary for TensorBoard 						
-		summary_writer = tf.summary.FileWriter(self.LOG_DIR)	
-		summary = tf.Summary()	
+		summary_writer = tf.summary.FileWriter(self.LOG_DIR, self.policy_graph)	
+		summary = tf.Summary()
 		# Alternatively, you could use animated real-time plots from matplotlib 
 		# (https://stackoverflow.com/a/24228275/3284912)
 		
 		# Initialize the TF session
-		self.session = tf.Session()
-		self.session.run(tf.global_variables_initializer())
+		self.policy_sess = tf.Session(graph=self.policy_graph)
+		with self.policy_graph.as_default():	
+			self.policy_sess.run(tf.global_variables_initializer())
 		
+		self.target_sess = tf.Session(graph=self.target_graph)
+		with self.target_graph.as_default():
+			self.target_sess.run(tf.global_variables_initializer())
 		############################################################
 		# Initialize other variables (like the replay memory)
 		############################################################
 
 		# Your code here
-
+		memory = []
+		total_steps = 0
 		############################################################
 		# Main training loop
 		# 
@@ -110,11 +171,11 @@ class DQN:
 		# You'll need to write code in various places in the following skeleton
 		#
 		############################################################
-
-		for episode in range(episodes_num):
+		for episode in xrange(episodes_num):
 		  
 			state = self.env.reset()
-
+			steps = 0
+			loss = 0.
 			############################################################
 			# Episode-specific initializations go here.
 			############################################################
@@ -124,19 +185,26 @@ class DQN:
 			############################################################
 
 			while True:
-
+				steps += 1
+				total_steps += 1
 				############################################################
 				# Pick the next action using epsilon greedy and and execute it
 				############################################################
 
 				# Your code here
-
+				if random.random() < self.epsilon:
+					action = np.random.randint(self.output_size)
+				else:
+					out = self.out.eval(feed_dict={self.x: np.array(state).reshape([1,self.input_size])}, session=self.policy_sess)
+					action = np.argmax(out)
+					
 				############################################################
 				# Step in the environment. Something like: 
 				# next_state, reward, done, _ = self.env.step(action)
 				############################################################
 
 				# Your code here
+				next_state, reward, done, _ = self.env.step(action)
 
 				############################################################
 				# Update the (limited) replay buffer. 
@@ -146,7 +214,10 @@ class DQN:
 				############################################################
 
 				# Your code here
-
+				if len(memory) == self.REPLAY_MEMORY_SIZE:
+					del memory[0]
+				memory.append((state, action, reward, next_state))
+				state = next_state
 				############################################################
 				# Sample a random minibatch and perform Q-learning (fetch max Q at s') 
 				#
@@ -158,6 +229,41 @@ class DQN:
 				############################################################
 
 				# Your code here
+				if len(memory) >= self.batch_size:
+					actions = []
+					states = []
+					next_states = []
+					rewards = []
+					batch = random.sample(memory, self.batch_size)
+					for p in batch:
+						states.append(p[0])
+						actions.append(p[1])
+						rewards.append(p[2])
+						next_states.append(p[3])
+
+					next_states = np.array(next_states)
+					out = self.tout.eval(feed_dict={self.tx: np.array(next_states)}, session=self.target_sess)
+					
+					targets = []
+					masks = []
+					for p, r, i in zip(out, rewards, actions):
+						c = [0, 0]
+						c[i] = 1.
+						targets.append([r+self.gamma*p, 0] if i==0 else [0, r+self.gamma*p])
+						masks.append(c)
+
+					states = np.array(states)
+					targets = np.array(targets)
+					masks = np.array(masks)
+
+					# print 'states: {}, targets: {}, masks: {}'.format(states.shape, targets.shape, masks.shape)
+					# _, l = self.policy_sess.run([self.train_op, self.loss],
+					# 	feed_dict={self.x: states, self.y: targets,
+					# 	self.mask: masks})
+					self.train_op.run(feed_dict={self.x: states, self.y: targets,
+						self.mask: masks}, session=self.policy_sess)
+					if total_steps % self.TARGET_UPDATE_FREQ:
+						self._change_target()
 
 				############################################################
 			  	# Update target weights. 
@@ -179,7 +285,8 @@ class DQN:
 				############################################################
 
 				# Your code here
-
+				if done:
+					break
 
 			############################################################
 			# Logging. 
@@ -191,9 +298,10 @@ class DQN:
 			#
 			# Use any debugging information you think you need.
 			# For instance :
-
-			print("Training: Episode = %d, Length = %d, Global step = %d" % (episode, episode_length, total_steps))
-			summary.value.add(tag="episode length", simple_value=episode_length)
+			# if self.epsilon > 0.01:
+			# 	self.epsilon *= self.epsilon_decay
+			print("Training: Episode = %d, Length = %d, Global step = %d" % (episode, steps, total_steps))
+			summary.value.add(tag="episode length", simple_value=steps)
 			summary_writer.add_summary(summary, episode)
 
 
@@ -218,20 +326,21 @@ class DQN:
 if __name__ == '__main__':
 
 	# Create and initialize the model
-	dqn = DQN('CartPole-v0')
+	hidden_layers = [128, 128]
+	dqn = DQN('CartPole-v0', hidden_layers)
 	dqn.initialize_network()
-
-	print("\nStarting training...\n")
 	dqn.train()
-	print("\nFinished training...\nCheck out some demonstrations\n")
+	# print("\nStarting training...\n")
+	# dqn.train()
+	# print("\nFinished training...\nCheck out some demonstrations\n")
 
-	# Visualize the learned behaviour for a few episodes
-	results = []
-	for i in range(50):
-		episode_length = dqn.playPolicy()
-		print("Test steps = ", episode_length)
-		results.append(episode_length)
-	print("Mean steps = ", sum(results) / len(results))	
+	# # Visualize the learned behaviour for a few episodes
+	# results = []
+	# for i in range(50):
+	# 	episode_length = dqn.playPolicy()
+	# 	print("Test steps = ", episode_length)
+	# 	results.append(episode_length)
+	# print("Mean steps = ", sum(results) / len(results))	
 
-	print("\nFinished.")
-	print("\nCiao, and hasta la vista...\n")
+	# print("\nFinished.")
+	# print("\nCiao, and hasta la vista...\n")
