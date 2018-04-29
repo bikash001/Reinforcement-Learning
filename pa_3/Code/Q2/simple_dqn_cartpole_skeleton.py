@@ -1,6 +1,7 @@
 import gym
 import random
-import os
+import os, sys
+import time
 
 import numpy as np
 import tensorflow as tf
@@ -22,7 +23,7 @@ class DQN:
 
 
 	# Create and initialize the environment
-	def __init__(self, env, hidden, model_dir='tmp/'):
+	def __init__(self, env, hidden, batch_size=10, lr=0.0001, eps=0.5, episode=2000, model_dir='model/'):
 		self.env = gym.make(env)
 		assert len(self.env.observation_space.shape) == 1
 		self.input_size = self.env.observation_space.shape[0]		# In case of cartpole, 4 state features
@@ -31,12 +32,17 @@ class DQN:
 			os.makedirs(model_dir)
 
 		self.model_dir = model_dir
-		self.hidden = hidden
-		self.epsilon = 0.1 #self.EPSILON
-		self.batch_size = self.MINIBATCH_SIZE
+		self.hidden = [self.input_size] + hidden + [self.output_size]
+		# print self.hidden
+
+		self.epsilon = eps
+		self.batch_size = batch_size
 		self.gamma = self.DISCOUNT_FACTOR
-		self.epsilon_decay = 0.999
-		self.lr = 0.001
+		self.epsilon_decay = self.EPSILON_DECAY
+		self.lr = lr
+		self.lmd = 0.0001
+		# self.max_episode = self.EPISODES_NUM
+		self.max_episode = episode
 
 	def _build_graph(self, target):
 		# placeholder for the state-space input to the q-network
@@ -54,35 +60,42 @@ class DQN:
 		# 	self.Q = tf.matmul(h_n-1, W_n) + b_n
 		#
 		#############################################################
-		if target:
-			w1_inp = tf.zeros([self.input_size, self.hidden[0]])
-			w2_inp = tf.zeros([self.hidden[0], self.hidden[1]])
-			w3_inp = tf.zeros([self.hidden[1], self.output_size])
-		else:
-			w1_inp = tf.truncated_normal([self.input_size, self.hidden[0]], stddev=0.01)
-			w2_inp = tf.truncated_normal([self.hidden[0], self.hidden[1]], stddev=0.01)
-			w3_inp = tf.truncated_normal([self.hidden[1], self.output_size], stddev=0.01)
+		# if target:
+		# 	w1_inp = tf.zeros([self.input_size, self.hidden[0]])
+		# 	w2_inp = tf.zeros([self.hidden[0], self.hidden[1]])
+		# 	w3_inp = tf.zeros([self.hidden[1], self.output_size])
+		# else:
+		# 	w1_inp = tf.truncated_normal([self.input_size, self.hidden[0]], stddev=0.01)
+		# 	w2_inp = tf.truncated_normal([self.hidden[0], self.hidden[1]], stddev=0.01)
+		# 	w3_inp = tf.truncated_normal([self.hidden[1], self.output_size], stddev=0.01)
 
-		w1 = tf.Variable(w1_inp, name='w1')
-		b1 = tf.Variable(tf.zeros(self.hidden[0]), name='b1')
-		a1 = tf.matmul(x, w1) + b1
-		h1 = tf.tanh(a1)
-
-		w2 = tf.Variable(w2_inp,name='w2')
-		b2 = tf.Variable(tf.zeros(self.hidden[1]), name='b2')
-		a2 = tf.matmul(h1, w2) + b2
-		h2 = tf.tanh(a2)
-
-		w3 = tf.Variable(w3_inp, name='w3')
-		b3 = tf.Variable(tf.zeros(self.output_size), name='b3')
-		out = tf.matmul(h2, w3) + b3
-
+		inp = x
+		params = []
+		# print self.hidden
+		for i in xrange(1, len(self.hidden), 1):
+			if target:
+				w_inp = tf.zeros([self.hidden[i-1], self.hidden[i]])
+			else:
+				w_inp = tf.random_normal([self.hidden[i-1], self.hidden[i]], stddev=2./(self.hidden[i-1]+self.hidden[i]))
+			w = tf.Variable(w_inp, name='w'+str(i))
+			b = tf.Variable(tf.zeros(self.hidden[i]), name='b'+str(i))
+			a = tf.matmul(inp, w) + b
+			params = params + [w]
+			if i < len(self.hidden)-1:
+				h = tf.nn.leaky_relu(a)
+				# h = tf.tanh(a)
+				inp = h
+		out = a
+		saver = tf.train.Saver(
+					tf.global_variables(), max_to_keep=20)
 		if target:
 			out = tf.reduce_max(out, 1)
-			self.target_saver = tf.train.Saver(
-					tf.global_variables(), max_to_keep=20)
+			# self.target_saver = tf.train.Saver(
+			# 		tf.global_variables(), max_to_keep=20)
+			self.target_saver = saver
 		else:
 			self.y = tf.placeholder(tf.float32, [None, self.output_size], name='output_placeholder')
+			y = self.y
 			############################################################
 			# Next, compute the loss.
 			#
@@ -95,9 +108,14 @@ class DQN:
 			############################################################
 			self.mask = tf.placeholder(tf.float32, [None, self.output_size], name='mask_placeholder')
 			y_hat = tf.multiply(out, self.mask)
+			# y_hat = out
 			# y = tf.multiply(self.y, self.mask)
-			loss = tf.losses.mean_squared_error(self.y, y_hat)
-
+			loss = tf.losses.mean_squared_error(y, y_hat)
+			# loss = tf.reduce_mean(tf.squared_difference(y_hat, y))
+			# l2 = tf.norm(params[0]) + tf.norm(params[1]) + tf.norm(params[2])
+			# for x in params[1:]:
+			# 	l2 = l2 + tf.norm(x)
+			# loss = loss + self.lmd * l2
 			############################################################
 			# Finally, choose a gradient descent algorithm : SGD/RMSProp/Adam. 
 			#
@@ -112,24 +130,25 @@ class DQN:
 			optimizer = tf.train.AdamOptimizer(self.lr)
 			global_step = tf.Variable(0, name='global_step', trainable=False)
 			self.train_op = optimizer.minimize(loss, global_step=global_step)
-			self.policy_saver = tf.train.Saver(
-					tf.global_variables(), max_to_keep=20)
+			# self.policy_saver = tf.train.Saver(
+			# 		tf.global_variables(), max_to_keep=20)
+			self.policy_saver = saver
 			self.loss = loss
 			############################################################
-		return x, out
+		return x, out, params
 
 	# Create the Q-network
   	def initialize_network(self):
   		self.target_graph = tf.Graph()
   		with self.target_graph.as_default():
-  			self.tx, self.tout = self._build_graph(True)
+  			self.tx, self.tout, self.tparams = self._build_graph(True)
   		
   		self.policy_graph = tf.Graph()
   		with self.policy_graph.as_default():
-  			self.x, self.out = self._build_graph(False)
+  			self.x, self.out, self.params = self._build_graph(False)
   		
-	def _change_target(self):
-		ckpt = self.policy_saver.save(self.policy_sess, self.model_dir)
+	def _change_target(self, step):
+		ckpt = self.policy_saver.save(self.policy_sess, self.model_dir+'ckpt-%d'%(step))
 		self.target_saver.restore(self.target_sess, ckpt)
 
 	def train(self, episodes_num=EPISODES_NUM):
@@ -171,7 +190,7 @@ class DQN:
 		# You'll need to write code in various places in the following skeleton
 		#
 		############################################################
-		for episode in xrange(episodes_num):
+		for episode in xrange(self.max_episode):
 		  
 			state = self.env.reset()
 			steps = 0
@@ -195,7 +214,7 @@ class DQN:
 				if random.random() < self.epsilon:
 					action = np.random.randint(self.output_size)
 				else:
-					out = self.out.eval(feed_dict={self.x: np.array(state).reshape([1,self.input_size])}, session=self.policy_sess)
+					out = self.policy_sess.run(self.out, feed_dict={self.x: np.array(state).reshape([1,self.input_size])})
 					action = np.argmax(out)
 					
 				############################################################
@@ -205,7 +224,8 @@ class DQN:
 
 				# Your code here
 				next_state, reward, done, _ = self.env.step(action)
-
+				if done:
+					reward = -10
 				############################################################
 				# Update the (limited) replay buffer. 
 				#
@@ -242,7 +262,7 @@ class DQN:
 						next_states.append(p[3])
 
 					next_states = np.array(next_states)
-					out = self.tout.eval(feed_dict={self.tx: np.array(next_states)}, session=self.target_sess)
+					out = self.target_sess.run(self.tout, feed_dict={self.tx: next_states})
 					
 					targets = []
 					masks = []
@@ -260,11 +280,12 @@ class DQN:
 					# _, l = self.policy_sess.run([self.train_op, self.loss],
 					# 	feed_dict={self.x: states, self.y: targets,
 					# 	self.mask: masks})
-					self.train_op.run(feed_dict={self.x: states, self.y: targets,
-						self.mask: masks}, session=self.policy_sess)
-					if total_steps % self.TARGET_UPDATE_FREQ:
-						self._change_target()
+					self.policy_sess.run(self.train_op, feed_dict={self.x: states, self.y: targets,
+						self.mask: masks})
 
+					if total_steps % self.TARGET_UPDATE_FREQ == 0:
+						self._change_target(total_steps)
+						
 				############################################################
 			  	# Update target weights. 
 			  	#
@@ -298,9 +319,9 @@ class DQN:
 			#
 			# Use any debugging information you think you need.
 			# For instance :
-			# if self.epsilon > 0.01:
-			# 	self.epsilon *= self.epsilon_decay
-			print("Training: Episode = %d, Length = %d, Global step = %d" % (episode, steps, total_steps))
+			if self.epsilon > 0.01: # and total_steps % 10 == 0:
+				self.epsilon *= self.epsilon_decay
+			print("Training: Episode = %d, Length = %d, Global step = %d, epsilon: %f" % (episode, steps, total_steps, self.epsilon))
 			summary.value.add(tag="episode length", simple_value=steps)
 			summary_writer.add_summary(summary, episode)
 
@@ -314,9 +335,9 @@ class DQN:
 		
 		# we assume the CartPole task to be solved if the pole remains upright for 200 steps
 		while not done and steps < 200: 	
-			self.env.render()				
-			q_vals = self.session.run(self.Q, feed_dict={self.x: [state]})
-			action = q_vals.argmax()
+			self.env.render()
+			q_vals = self.policy_sess.run(self.out, feed_dict={self.x: np.array(state).reshape([1,self.input_size])})
+			action = np.argmax(q_vals)
 			state, _, done, _ = self.env.step(action)
 			steps += 1
 		
@@ -327,20 +348,19 @@ if __name__ == '__main__':
 
 	# Create and initialize the model
 	hidden_layers = [128, 128]
-	dqn = DQN('CartPole-v0', hidden_layers)
+	dqn = DQN('CartPole-v0', hidden_layers, episode=1000)
 	dqn.initialize_network()
+	print("\nStarting training...\n")
 	dqn.train()
-	# print("\nStarting training...\n")
-	# dqn.train()
-	# print("\nFinished training...\nCheck out some demonstrations\n")
+	print("\nFinished training...\nCheck out some demonstrations\n")
 
-	# # Visualize the learned behaviour for a few episodes
-	# results = []
-	# for i in range(50):
-	# 	episode_length = dqn.playPolicy()
-	# 	print("Test steps = ", episode_length)
-	# 	results.append(episode_length)
-	# print("Mean steps = ", sum(results) / len(results))	
+	# Visualize the learned behaviour for a few episodes
+	results = []
+	for i in range(50):
+		episode_length = dqn.playPolicy()
+		print("Test steps = ", episode_length)
+		results.append(episode_length)
 
-	# print("\nFinished.")
-	# print("\nCiao, and hasta la vista...\n")
+	print("Mean steps = ", sum(results) / len(results))	
+	print("\nFinished.")
+	print("\nCiao, and hasta la vista...\n")
